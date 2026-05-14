@@ -6,6 +6,8 @@ import {
   formatVertexList,
   generateGraph,
   getNeighbors,
+  setGraphEdge,
+  toggleGraphEdge,
 } from "./graph.js";
 
 const svg = document.querySelector("#graph-svg");
@@ -14,6 +16,7 @@ const nodeCountInput = document.querySelector("#node-count");
 const densityInput = document.querySelector("#density");
 const densityLabel = document.querySelector("#density-label");
 const graphTitle = document.querySelector("#graph-title");
+const graphEdgeCount = document.querySelector("#graph-edge-count");
 const edgeCount = document.querySelector("#edge-count");
 const subsetCount = document.querySelector("#subset-count");
 const neighborCount = document.querySelector("#neighbor-count");
@@ -23,16 +26,29 @@ const subsetSet = document.querySelector("#subset-set");
 const neighborSet = document.querySelector("#neighbor-set");
 const resultTitle = document.querySelector("#result-title");
 const resultBody = document.querySelector("#result-body");
+const editReadout = document.querySelector("#edit-readout");
 const generateButton = document.querySelector("#generate-button");
 const clearAllButton = document.querySelector("#clear-all-button");
 const clearEdgesButton = document.querySelector("#clear-edges-button");
 const clearSubsetButton = document.querySelector("#clear-subset-button");
 const checkMatchingButton = document.querySelector("#check-matching-button");
 const checkHallButton = document.querySelector("#check-hall-button");
+const solveModeButton = document.querySelector("#solve-mode-button");
+const editModeButton = document.querySelector("#edit-mode-button");
+const editModePanelButton = document.querySelector("#edit-mode-panel-button");
+const cancelEditButton = document.querySelector("#cancel-edit-button");
+const hallLeftButton = document.querySelector("#hall-left-button");
+const hallRightButton = document.querySelector("#hall-right-button");
 
 let graph;
 let selectedEdges = new Set();
-let selectedLeft = new Set();
+let selectedHall = {
+  left: new Set(),
+  right: new Set(),
+};
+let hallSide = "left";
+let interactionMode = "solve";
+let editStart = null;
 let lastSeed = "";
 
 initFromUrl();
@@ -83,7 +99,7 @@ function wireEvents() {
   });
 
   clearSubsetButton.addEventListener("click", () => {
-    selectedLeft = new Set();
+    selectedHall[hallSide] = new Set();
     setResult("Ready", "Subset cleared.", "neutral");
     render();
   });
@@ -103,17 +119,31 @@ function wireEvents() {
   });
 
   checkHallButton.addEventListener("click", () => {
-    const result = checkHallViolation(graph, Array.from(selectedLeft));
+    const selected = Array.from(selectedHall[hallSide]);
+    const result = checkHallViolation(graph, selected, hallSide);
     if (result.ok) {
-      setResult("Correct", `Hall fails here: |S| = ${result.selected.length} and |N(S)| = ${result.neighbors.length}.`, "success");
+      const shore = result.side === "left" ? "left" : "right";
+      setResult("Correct", `Hall fails on the ${shore}: |S| = ${result.selected.length} and |N(S)| = ${result.neighbors.length}.`, "success");
       return;
     }
 
     const message = result.selected.length === 0
-      ? "Select at least one left vertex."
+      ? `Select at least one ${hallSide} vertex.`
       : `This subset has |S| = ${result.selected.length} and |N(S)| = ${result.neighbors.length}.`;
     setResult("Not yet", message, "warn");
   });
+
+  solveModeButton.addEventListener("click", () => setInteractionMode("solve"));
+  editModeButton.addEventListener("click", () => setInteractionMode("edit"));
+  editModePanelButton.addEventListener("click", () => setInteractionMode(interactionMode === "edit" ? "solve" : "edit"));
+  cancelEditButton.addEventListener("click", () => {
+    editStart = null;
+    setResult("Ready", "Endpoint cleared.", "neutral");
+    render();
+  });
+
+  hallLeftButton.addEventListener("click", () => setHallSide("left"));
+  hallRightButton.addEventListener("click", () => setHallSide("right"));
 }
 
 function newGraph() {
@@ -125,9 +155,14 @@ function newGraph() {
 
   graph = generateGraph({ n, density, rng });
   selectedEdges = new Set();
-  selectedLeft = new Set();
+  selectedHall = {
+    left: new Set(),
+    right: new Set(),
+  };
+  editStart = null;
 
   generateButton.blur();
+  setInteractionMode("solve", false);
   setResult("Ready", "Try a perfect matching or a Hall subset.", "neutral");
   render();
 }
@@ -136,16 +171,18 @@ function render() {
   svg.replaceChildren();
 
   const layout = makeLayout(graph.n);
-  const selectedNeighbors = getNeighbors(graph, Array.from(selectedLeft));
+  const selectedSubset = selectedHall[hallSide];
+  const selectedNeighbors = getNeighbors(graph, Array.from(selectedSubset), hallSide);
   const selectedNeighborSet = new Set(selectedNeighbors);
   const matchedVertices = getMatchedVertices();
 
-  drawEdges(layout, selectedNeighborSet);
-  drawVertices(layout, selectedNeighborSet, matchedVertices);
+  drawEdges(layout, selectedSubset, selectedNeighborSet);
+  drawVertices(layout, selectedSubset, selectedNeighborSet, matchedVertices);
   updateReadouts(selectedNeighbors);
+  updateButtons();
 }
 
-function drawEdges(layout, selectedNeighborSet) {
+function drawEdges(layout, selectedSubset, selectedNeighborSet) {
   const edgeLayer = makeSvgElement("g", { class: "edge-layer" });
   svg.append(edgeLayer);
 
@@ -153,14 +190,19 @@ function drawEdges(layout, selectedNeighborSet) {
     const left = layout.left[edge.left];
     const right = layout.right[edge.right];
     const isSelected = selectedEdges.has(edge.id);
-    const touchesSubset = selectedLeft.has(edge.left);
-    const isSubsetNeighbor = selectedNeighborSet.has(edge.right);
+    const touchesSubset = hallSide === "left"
+      ? selectedSubset.has(edge.left)
+      : selectedSubset.has(edge.right);
+    const touchesNeighbor = hallSide === "left"
+      ? selectedNeighborSet.has(edge.right)
+      : selectedNeighborSet.has(edge.left);
     const group = makeSvgElement("g", { class: "edge-group" });
     const lineClass = [
       "edge-line",
       isSelected ? "is-selected" : "",
-      touchesSubset && isSubsetNeighbor ? "is-neighbor-edge" : "",
-      selectedLeft.size > 0 && !touchesSubset ? "is-muted" : "",
+      touchesSubset && touchesNeighbor ? "is-neighbor-edge" : "",
+      selectedSubset.size > 0 && !touchesSubset ? "is-muted" : "",
+      interactionMode === "edit" ? "is-editable" : "",
     ].filter(Boolean).join(" ");
 
     const visible = makeSvgElement("line", {
@@ -179,14 +221,14 @@ function drawEdges(layout, selectedNeighborSet) {
       y2: right.y,
       tabindex: 0,
       role: "button",
-      "aria-label": `Edge ${edge.left + 1} to ${edge.right + 1}`,
+      "aria-label": `${interactionMode === "edit" ? "Remove" : "Select"} edge ${edge.left + 1} to ${edge.right + 1}`,
     });
 
-    hit.addEventListener("click", () => toggleEdge(edge.id));
+    hit.addEventListener("click", () => handleEdgeClick(edge));
     hit.addEventListener("keydown", (event) => {
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
-        toggleEdge(edge.id);
+        handleEdgeClick(edge);
       }
     });
 
@@ -195,37 +237,43 @@ function drawEdges(layout, selectedNeighborSet) {
   });
 }
 
-function drawVertices(layout, selectedNeighborSet, matchedVertices) {
+function drawVertices(layout, selectedSubset, selectedNeighborSet, matchedVertices) {
   const vertexLayer = makeSvgElement("g", { class: "vertex-layer" });
   svg.append(vertexLayer);
 
   layout.left.forEach((point, index) => {
-    const selected = selectedLeft.has(index);
+    const selected = hallSide === "left" && selectedSubset.has(index);
+    const neighbor = hallSide === "right" && selectedNeighborSet.has(index);
     const matched = matchedVertices.left.has(index);
+    const interactive = interactionMode === "edit" || hallSide === "left";
     const group = makeVertex(point, `L${index + 1}`, [
       "left-vertex",
       selected ? "is-subset" : "",
+      neighbor ? "is-neighbor" : "",
       matched ? "is-matched" : "",
-    ], true);
+      isEditStart("left", index) ? "is-edit-source" : "",
+      interactive ? "is-interactive" : "",
+    ], interactive);
 
-    group.addEventListener("click", () => toggleLeft(index));
-    group.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        toggleLeft(index);
-      }
-    });
+    wireVertexEvents(group, "left", index);
     vertexLayer.append(group);
   });
 
   layout.right.forEach((point, index) => {
-    const neighbor = selectedNeighborSet.has(index);
+    const selected = hallSide === "right" && selectedSubset.has(index);
+    const neighbor = hallSide === "left" && selectedNeighborSet.has(index);
     const matched = matchedVertices.right.has(index);
+    const interactive = interactionMode === "edit" || hallSide === "right";
     const group = makeVertex(point, `R${index + 1}`, [
       "right-vertex",
+      selected ? "is-subset" : "",
       neighbor ? "is-neighbor" : "",
       matched ? "is-matched" : "",
-    ], false);
+      isEditStart("right", index) ? "is-edit-source" : "",
+      interactive ? "is-interactive" : "",
+    ], interactive);
+
+    wireVertexEvents(group, "right", index);
     vertexLayer.append(group);
   });
 }
@@ -253,18 +301,86 @@ function makeVertex(point, label, classes, interactive) {
   return group;
 }
 
-function updateReadouts(selectedNeighbors) {
-  graphTitle.textContent = `${graph.n} by ${graph.n} graph`;
-  edgeCount.textContent = `${selectedEdges.size} / ${graph.n}`;
-  subsetCount.textContent = `${selectedLeft.size} ${pluralize("vertex", selectedLeft.size)}`;
-  neighborCount.textContent = `${selectedNeighbors.length} ${pluralize("vertex", selectedNeighbors.length)}`;
-  matchingReadout.textContent = `${selectedEdges.size} ${pluralize("edge", selectedEdges.size)} selected.`;
-  hallReadout.textContent = `|S| = ${selectedLeft.size}, |N(S)| = ${selectedNeighbors.length}`;
-  subsetSet.textContent = formatVertexList("S", Array.from(selectedLeft).sort((a, b) => a - b));
-  neighborSet.textContent = formatVertexList("N(S)", selectedNeighbors);
+function wireVertexEvents(group, side, index) {
+  group.addEventListener("click", () => handleVertexClick(side, index));
+  group.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      handleVertexClick(side, index);
+    }
+  });
 }
 
-function toggleEdge(edgeId) {
+function updateReadouts(selectedNeighbors) {
+  const selectedSubset = selectedHall[hallSide];
+  const shoreLabel = hallSide === "left" ? "left" : "right";
+
+  graphTitle.textContent = `${graph.n} by ${graph.n} graph`;
+  graphEdgeCount.textContent = `${graph.edges.length}`;
+  edgeCount.textContent = `${selectedEdges.size} / ${graph.n}`;
+  subsetCount.textContent = `${selectedSubset.size} ${pluralize("vertex", selectedSubset.size)}`;
+  neighborCount.textContent = `${selectedNeighbors.length} ${pluralize("vertex", selectedNeighbors.length)}`;
+  matchingReadout.textContent = `${selectedEdges.size} ${pluralize("edge", selectedEdges.size)} selected.`;
+  hallReadout.textContent = `${shoreLabel} side: |S| = ${selectedSubset.size}, |N(S)| = ${selectedNeighbors.length}`;
+  subsetSet.textContent = formatVertexList("S", Array.from(selectedSubset).sort((a, b) => a - b));
+  neighborSet.textContent = formatVertexList("N(S)", selectedNeighbors);
+  editReadout.textContent = makeEditReadout();
+}
+
+function updateButtons() {
+  solveModeButton.setAttribute("aria-pressed", String(interactionMode === "solve"));
+  editModeButton.setAttribute("aria-pressed", String(interactionMode === "edit"));
+  hallLeftButton.setAttribute("aria-pressed", String(hallSide === "left"));
+  hallRightButton.setAttribute("aria-pressed", String(hallSide === "right"));
+  editModePanelButton.textContent = interactionMode === "edit" ? "Stop editing" : "Edit graph";
+  cancelEditButton.disabled = editStart === null;
+}
+
+function handleEdgeClick(edge) {
+  if (interactionMode === "edit") {
+    graph = setGraphEdge(graph, edge.left, edge.right, false);
+    selectedEdges.delete(edge.id);
+    editStart = null;
+    setResult("Graph edited", `Removed edge L${edge.left + 1}-R${edge.right + 1}.`, "neutral");
+    render();
+    return;
+  }
+
+  toggleMatchingEdge(edge.id);
+}
+
+function handleVertexClick(side, index) {
+  if (interactionMode === "edit") {
+    handleEditVertex(side, index);
+    return;
+  }
+
+  if (side !== hallSide) {
+    return;
+  }
+
+  toggleHallVertex(side, index);
+}
+
+function handleEditVertex(side, index) {
+  if (editStart === null || editStart.side === side) {
+    editStart = { side, index };
+    setResult("Editing graph", `${vertexName(side, index)} selected.`, "neutral");
+    render();
+    return;
+  }
+
+  const left = side === "left" ? index : editStart.index;
+  const right = side === "right" ? index : editStart.index;
+  const wasPresent = graph.edgeById.has(`L${left}-R${right}`);
+  graph = toggleGraphEdge(graph, left, right);
+  selectedEdges = new Set(Array.from(selectedEdges).filter((edgeId) => graph.edgeById.has(edgeId)));
+  editStart = null;
+  setResult("Graph edited", `${wasPresent ? "Removed" : "Added"} edge L${left + 1}-R${right + 1}.`, "neutral");
+  render();
+}
+
+function toggleMatchingEdge(edgeId) {
   if (selectedEdges.has(edgeId)) {
     selectedEdges.delete(edgeId);
   } else {
@@ -275,20 +391,45 @@ function toggleEdge(edgeId) {
   render();
 }
 
-function toggleLeft(index) {
-  if (selectedLeft.has(index)) {
-    selectedLeft.delete(index);
+function toggleHallVertex(side, index) {
+  if (selectedHall[side].has(index)) {
+    selectedHall[side].delete(index);
   } else {
-    selectedLeft.add(index);
+    selectedHall[side].add(index);
   }
 
   setResult("Ready", "Subset updated.", "neutral");
   render();
 }
 
+function setInteractionMode(mode, shouldRender = true) {
+  interactionMode = mode;
+  editStart = null;
+
+  if (mode === "edit") {
+    setResult("Editing graph", "Choose endpoints or tap an edge.", "neutral");
+  }
+
+  if (shouldRender) {
+    render();
+  }
+}
+
+function setHallSide(side) {
+  hallSide = side;
+  editStart = null;
+  setInteractionMode("solve", false);
+  setResult("Ready", `${side === "left" ? "Left" : "Right"} side selected for Hall.`, "neutral");
+  render();
+}
+
 function clearSelections() {
   selectedEdges = new Set();
-  selectedLeft = new Set();
+  selectedHall = {
+    left: new Set(),
+    right: new Set(),
+  };
+  editStart = null;
   render();
 }
 
@@ -305,6 +446,26 @@ function getMatchedVertices() {
   });
 
   return { left, right };
+}
+
+function makeEditReadout() {
+  if (interactionMode !== "edit") {
+    return "Mode: solve";
+  }
+
+  if (editStart === null) {
+    return "Mode: edit, no endpoint selected";
+  }
+
+  return `Mode: edit, endpoint ${vertexName(editStart.side, editStart.index)}`;
+}
+
+function isEditStart(side, index) {
+  return editStart?.side === side && editStart.index === index;
+}
+
+function vertexName(side, index) {
+  return `${side === "left" ? "L" : "R"}${index + 1}`;
 }
 
 function makeLayout(n) {

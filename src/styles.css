@@ -40,6 +40,11 @@ button {
   font-weight: 750;
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
 button:focus-visible,
 input:focus-visible,
 .edge-hit:focus-visible,
@@ -154,7 +159,7 @@ input:focus-visible,
 
 .status-strip {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 1px;
   overflow: hidden;
   border: 1px solid var(--line);
@@ -209,10 +214,44 @@ input:focus-visible,
   padding: 18px 18px 12px;
 }
 
+.graph-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
 .graph-heading h2,
 .tool-section h2,
 .result-section h2 {
   font-size: 1.15rem;
+}
+
+.segmented-control {
+  display: inline-grid;
+  grid-auto-flow: column;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ede8dc;
+}
+
+.segmented-control.full-width {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.segment-button {
+  min-height: 38px;
+  border-radius: 0;
+  padding: 0 12px;
+  color: var(--muted);
+  background: transparent;
+}
+
+.segment-button[aria-pressed="true"] {
+  color: white;
+  background: #2f625d;
 }
 
 .graph-svg {
@@ -248,6 +287,10 @@ input:focus-visible,
   opacity: 1;
 }
 
+.edge-line.is-editable {
+  stroke-dasharray: 8 9;
+}
+
 .edge-hit {
   stroke: transparent;
   stroke-width: 24;
@@ -259,7 +302,7 @@ input:focus-visible,
   cursor: default;
 }
 
-.left-vertex {
+.vertex.is-interactive {
   cursor: pointer;
 }
 
@@ -295,8 +338,24 @@ input:focus-visible,
   stroke-width: 5;
 }
 
+.right-vertex.is-subset circle,
+.right-vertex.is-neighbor circle {
+  fill: rgb(181 87 67 / 16%);
+}
+
+.left-vertex.is-subset circle,
+.left-vertex.is-neighbor circle {
+  fill: rgb(43 129 118 / 17%);
+}
+
 .vertex.is-matched circle {
   filter: drop-shadow(0 0 7px rgb(240 168 58 / 48%));
+}
+
+.vertex.is-edit-source circle {
+  fill: rgb(240 168 58 / 18%);
+  stroke: var(--selected);
+  stroke-width: 6;
 }
 
 .action-panel {
@@ -391,8 +450,18 @@ body[data-tone="neutral"] .result-section {
     flex-direction: column;
   }
 
+  .graph-actions,
   .graph-heading .ghost-button {
     width: 100%;
+  }
+
+  .graph-actions {
+    justify-content: stretch;
+  }
+
+  .graph-actions .segmented-control,
+  .graph-actions .ghost-button {
+    flex: 1 1 100%;
   }
 
   .graph-svg {

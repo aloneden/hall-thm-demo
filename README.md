@@ -5,7 +5,9 @@ A dependency-free classroom web app for practicing Hall's marriage theorem on ra
 Students can either:
 
 - tap edges to certify a perfect matching, or
-- tap left-side vertices to certify a Hall violation, with the neighbor set highlighted on the right.
+- tap vertices on either side to certify a Hall violation, with the neighbor set highlighted on the opposite side.
+
+They can also switch to edit mode to add or remove edges from the generated graph.
 
 ## Run Locally
 

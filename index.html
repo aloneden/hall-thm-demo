@@ -32,6 +32,10 @@
 
       <section class="status-strip" aria-live="polite">
         <div>
+          <span class="metric-label">Graph edges</span>
+          <strong id="graph-edge-count">0</strong>
+        </div>
+        <div>
           <span class="metric-label">Selected edges</span>
           <strong id="edge-count">0 / 6</strong>
         </div>
@@ -52,7 +56,13 @@
               <p class="eyebrow">Instance</p>
               <h2 id="graph-title">6 by 6 graph</h2>
             </div>
-            <button class="ghost-button" id="clear-all-button" type="button">Clear picks</button>
+            <div class="graph-actions">
+              <div class="segmented-control" role="group" aria-label="Interaction mode">
+                <button class="segment-button" id="solve-mode-button" type="button" aria-pressed="true">Solve</button>
+                <button class="segment-button" id="edit-mode-button" type="button" aria-pressed="false">Edit graph</button>
+              </div>
+              <button class="ghost-button" id="clear-all-button" type="button">Clear picks</button>
+            </div>
           </div>
 
           <svg id="graph-svg" class="graph-svg" viewBox="0 0 900 620" role="img" aria-labelledby="graph-title"></svg>
@@ -71,8 +81,12 @@
 
           <section class="tool-section">
             <p class="eyebrow">Option B</p>
-            <h2>Hall subset</h2>
-            <p class="tool-readout" id="hall-readout">Tap left vertices to mark their neighbors.</p>
+            <h2>Hall refuting set</h2>
+            <div class="segmented-control full-width" role="group" aria-label="Hall subset side">
+              <button class="segment-button" id="hall-left-button" type="button" aria-pressed="true">Left side</button>
+              <button class="segment-button" id="hall-right-button" type="button" aria-pressed="false">Right side</button>
+            </div>
+            <p class="tool-readout" id="hall-readout">Left side: |S| = 0, |N(S)| = 0</p>
             <div class="set-readout">
               <span id="subset-set">S = { }</span>
               <span id="neighbor-set">N(S) = { }</span>
@@ -80,6 +94,16 @@
             <div class="button-row">
               <button class="secondary-button" id="check-hall-button" type="button">Check subset</button>
               <button class="ghost-button" id="clear-subset-button" type="button">Clear subset</button>
+            </div>
+          </section>
+
+          <section class="tool-section">
+            <p class="eyebrow">Option C</p>
+            <h2>Edit edges</h2>
+            <p class="tool-readout" id="edit-readout">Mode: solve</p>
+            <div class="button-row">
+              <button class="secondary-button" id="edit-mode-panel-button" type="button">Edit graph</button>
+              <button class="ghost-button" id="cancel-edit-button" type="button" disabled>Cancel endpoint</button>
             </div>
           </section>
 

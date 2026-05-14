@@ -39,14 +39,17 @@ export function generateGraph(options = {}) {
     addGuaranteedHallBlock(adjacencySets, n, density, rng);
   }
 
-  const graph = buildGraph(n, adjacencySets);
-  const matching = findMaximumMatching(graph);
+  return finalizeGraph(buildGraph(n, adjacencySets));
+}
 
-  return {
-    ...graph,
-    kind: matching.size === n ? "matchable" : "blocked",
-    maximumMatchingSize: matching.size,
-  };
+export function createGraph(n, adjacencyInput) {
+  const size = clampInteger(n, 2, 12);
+  const adjacencySets = Array.from({ length: size }, (_, left) => {
+    const rights = adjacencyInput[left] ?? [];
+    return new Set(rights.filter((right) => Number.isInteger(right) && right >= 0 && right < size));
+  });
+
+  return finalizeGraph(buildGraph(size, adjacencySets));
 }
 
 export function findMaximumMatching(graph) {
@@ -68,10 +71,14 @@ export function findMaximumMatching(graph) {
   return { size: pairs.length, pairs };
 }
 
-export function getNeighbors(graph, leftVertices) {
+export function getNeighbors(graph, vertices, side = "left") {
+  if (normalizeSide(side) === "right") {
+    return getLeftNeighbors(graph, vertices);
+  }
+
   const neighbors = new Set();
 
-  leftVertices.forEach((left) => {
+  vertices.forEach((left) => {
     graph.adjacency[left]?.forEach((right) => {
       neighbors.add(right);
     });
@@ -80,15 +87,37 @@ export function getNeighbors(graph, leftVertices) {
   return Array.from(neighbors).sort((a, b) => a - b);
 }
 
-export function checkHallViolation(graph, leftVertices) {
-  const selected = Array.from(new Set(leftVertices)).sort((a, b) => a - b);
-  const neighbors = getNeighbors(graph, selected);
+export function checkHallViolation(graph, vertices, side = "left") {
+  const selected = Array.from(new Set(vertices)).sort((a, b) => a - b);
+  const normalizedSide = normalizeSide(side);
+  const neighbors = getNeighbors(graph, selected, normalizedSide);
 
   return {
     ok: selected.length > 0 && neighbors.length < selected.length,
+    side: normalizedSide,
     selected,
     neighbors,
   };
+}
+
+export function setGraphEdge(graph, left, right, present) {
+  if (!Number.isInteger(left) || !Number.isInteger(right) || left < 0 || right < 0 || left >= graph.n || right >= graph.n) {
+    return graph;
+  }
+
+  const adjacencySets = graph.adjacency.map((rights) => new Set(rights));
+
+  if (present) {
+    adjacencySets[left].add(right);
+  } else {
+    adjacencySets[left].delete(right);
+  }
+
+  return finalizeGraph(buildGraph(graph.n, adjacencySets));
+}
+
+export function toggleGraphEdge(graph, left, right) {
+  return setGraphEdge(graph, left, right, !graph.edgeById.has(edgeId(left, right)));
 }
 
 export function checkPerfectMatching(graph, selectedEdgeIds) {
@@ -196,6 +225,35 @@ function buildGraph(n, adjacencySets) {
   });
 
   return { n, adjacency, edges, edgeById };
+}
+
+function finalizeGraph(graph) {
+  const matching = findMaximumMatching(graph);
+
+  return {
+    ...graph,
+    kind: matching.size === graph.n ? "matchable" : "blocked",
+    maximumMatchingSize: matching.size,
+  };
+}
+
+function getLeftNeighbors(graph, rightVertices) {
+  const rightSet = new Set(rightVertices);
+  const neighbors = new Set();
+
+  graph.adjacency.forEach((rights, left) => {
+    rights.forEach((right) => {
+      if (rightSet.has(right)) {
+        neighbors.add(left);
+      }
+    });
+  });
+
+  return Array.from(neighbors).sort((a, b) => a - b);
+}
+
+function normalizeSide(side) {
+  return side === "right" ? "right" : "left";
 }
 
 function tryAugment(left, seenRight, matchRightToLeft, adjacency) {
