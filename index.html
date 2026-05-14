@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Hall's Theorem Lab</title>
+    <link rel="stylesheet" href="./src/styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div class="title-block">
+          <p class="eyebrow">Bipartite matching</p>
+          <h1>Hall's Theorem Lab</h1>
+        </div>
+
+        <form class="controls" id="controls">
+          <label class="field">
+            <span>Vertices per side</span>
+            <input id="node-count" name="node-count" type="number" min="2" max="12" value="6" inputmode="numeric">
+          </label>
+
+          <label class="field range-field">
+            <span>Edge density</span>
+            <input id="density" name="density" type="range" min="20" max="75" value="42">
+            <strong id="density-label">42%</strong>
+          </label>
+
+          <button class="primary-button" id="generate-button" type="submit">Generate random graph</button>
+        </form>
+      </header>
+
+      <section class="status-strip" aria-live="polite">
+        <div>
+          <span class="metric-label">Selected edges</span>
+          <strong id="edge-count">0 / 6</strong>
+        </div>
+        <div>
+          <span class="metric-label">Selected subset</span>
+          <strong id="subset-count">0 vertices</strong>
+        </div>
+        <div>
+          <span class="metric-label">Neighbors</span>
+          <strong id="neighbor-count">0 vertices</strong>
+        </div>
+      </section>
+
+      <section class="workspace">
+        <div class="graph-panel">
+          <div class="graph-heading">
+            <div>
+              <p class="eyebrow">Instance</p>
+              <h2 id="graph-title">6 by 6 graph</h2>
+            </div>
+            <button class="ghost-button" id="clear-all-button" type="button">Clear picks</button>
+          </div>
+
+          <svg id="graph-svg" class="graph-svg" viewBox="0 0 900 620" role="img" aria-labelledby="graph-title"></svg>
+        </div>
+
+        <aside class="action-panel">
+          <section class="tool-section">
+            <p class="eyebrow">Option A</p>
+            <h2>Perfect matching</h2>
+            <p class="tool-readout" id="matching-readout">Tap edges to build a matching.</p>
+            <div class="button-row">
+              <button class="secondary-button" id="check-matching-button" type="button">Check matching</button>
+              <button class="ghost-button" id="clear-edges-button" type="button">Clear edges</button>
+            </div>
+          </section>
+
+          <section class="tool-section">
+            <p class="eyebrow">Option B</p>
+            <h2>Hall subset</h2>
+            <p class="tool-readout" id="hall-readout">Tap left vertices to mark their neighbors.</p>
+            <div class="set-readout">
+              <span id="subset-set">S = { }</span>
+              <span id="neighbor-set">N(S) = { }</span>
+            </div>
+            <div class="button-row">
+              <button class="secondary-button" id="check-hall-button" type="button">Check subset</button>
+              <button class="ghost-button" id="clear-subset-button" type="button">Clear subset</button>
+            </div>
+          </section>
+
+          <section class="result-section" aria-live="polite">
+            <p class="eyebrow">Feedback</p>
+            <h2 id="result-title">Ready</h2>
+            <p id="result-body">Generate an instance, then try one of the two certificates.</p>
+          </section>
+        </aside>
+      </section>
+    </main>
+
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>
